@@ -1,0 +1,28 @@
+group 'de.huberlin.cs.pda.queryeval'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'java'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // CEP
+    compile group: 'com.espertech', name: 'esper', version: '7.0.0' // GPL-2.0
+
+    // Command line arguments
+    compile group: 'net.sf.jopt-simple', name: 'jopt-simple', version: '4.9' // MIT
+
+    // IntelliJ Annotations
+    compile group: 'org.jetbrains', name: 'annotations', version: '15.0' // Apache-2.0
+
+    // Logging
+    compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3' // LGPL-2.1
+    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25' // MIT
+    compile group: 'org.slf4j', name: 'log4j-over-slf4j', version: '1.7.25' // MIT
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
