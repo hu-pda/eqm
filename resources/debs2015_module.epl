@@ -1,0 +1,55 @@
+module com.mitakas.esper.DEBS2015;
+
+// import the event type
+import com.mitakas.esper.event.TaxiEvent;
+
+// source data: "../data/debs2015/sorted_data_january.csv.gz";
+
+/* Pattern DEBS-p1
+    Pattern SEQ(Taxi a, Taxi b)
+    Where a.medallion = b.medallion
+    And b.pickup_lon < a.dropoff_lon
+    And b.pickup_lat < a.dropoff_lat
+    Within 6 minutes
+ */
+@Name('debs-p1')
+@Description('')
+select * from pattern [
+  every a=TaxiEvent -> (
+    b=TaxiEvent(medallion = a.medallion and pickupLongitude < a.dropoffLongitude and pickupLatitude < a.dropoffLatitude)
+  )
+  where timer:within(6 minutes)
+];
+
+/* Pattern DEBS-p2
+    Pattern SEQ(Taxi a, Taxi b, Taxi c)
+    Where a.payment = 'CSH' And b.payment = 'CSH' And c.payment = 'CSH'
+    And a.distance < b.distance And b.distance = c.distance
+    Within 80 seconds
+ */
+@Name('debs-p2')
+@Description('')
+select * from pattern [
+  every a=TaxiEvent(paymentType = 'CSH') -> (
+    b=TaxiEvent(paymentType = 'CSH' and tripDistance > a.tripDistance) ->
+    c=TaxiEvent(paymentType = 'CSH' and tripDistance = b.tripDistance)
+  )
+  where timer:within(80 seconds)
+];
+
+/* Pattern DEBS-p3
+    Pattern SEQ(Taxi a, Taxi b, Taxi c)
+    Where a.payment = 'CRD' And c.payment = 'CRD' And b.payment = 'CSH'
+    And b.tip < a.tip And b.fare < a.fare And c.total = b.total
+    And c.distance = b.distance
+    Within 80 seconds
+ */
+@Name('debs-p3')
+@Description('')
+select * from pattern [
+  every a=TaxiEvent(paymentType = 'CRD') -> (
+    b=TaxiEvent(paymentType = 'CSH' and tipAmount < a.tipAmount and fareAmount < a.fareAmount) ->
+    c=TaxiEvent(paymentType = 'CRD' and totalAmount = b.totalAmount and tripDistance = b.tripDistance)
+  )
+  where timer:within(80 seconds)
+];

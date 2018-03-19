@@ -1,0 +1,52 @@
+module com.mitakas.esper.Nasdaq;
+
+// import the event type
+import com.mitakas.esper.event.StockEvent;
+
+// source data, sorted on  "date" attribute (also _1, _5, _10, _15, _30, _60): "../data/nasdaq/nasdaq_2010_nov_1.txt.gz";
+
+/* Pattern Stock-p1
+    Pattern SEQ(Stock a, Stock b)
+    Where a.ticker = b.ticker = 'GOOG'
+    And a.low > b.low
+    Within 800 seconds
+ */
+@Name('stock-p1')
+@Description('')
+select * from pattern [
+  every a=StockEvent(ticker = 'GOOG') -> (
+    b=StockEvent(ticker = a.ticker and low < a.low)
+    )
+  where timer:within(800 seconds)
+];
+
+/* Pattern Stock-p2
+    Pattern SEQ(Stock a, Stock b, Stock c)
+    Where a.ticker = 'MSFT' And b.ticker = 'GOOG'
+    And c.tocker = 'AAPL' And a.vol < b.vol And b.vol < c.vol
+    Within 10 minutes
+ */
+@Name('stock-p2')
+@Description('')
+select * from pattern [
+  every a=StockEvent(ticker = 'MSFT') -> (
+    b=StockEvent(ticker = 'GOOG' and vol > a.vol) ->
+    c=StockEvent(ticker = 'AAPL' and vol > b.vol)
+  ) 
+  where timer:within(10 minutes)
+];
+
+/* Pattern Stock-p3
+    Pattern SEQ(Stock a, Stock b, Stock c, Stock d)
+    Where a.vol = b.vol And a.vol = c.vol And a.vol = d.vol
+    Within 50 seconds
+ */
+@Name('stock-p3')
+@Description('')
+select * from pattern [
+		every a=StockEvent() 
+		-> (b=StockEvent(vol = a.vol) 
+		-> c=StockEvent(vol = a.vol) 
+		-> d=StockEvent(vol = a.vol)) 
+		where timer:within(50 seconds)
+		];

@@ -22,6 +22,8 @@ import java.util.zip.GZIPInputStream;
 
 /**
  * Created by dimitar on 30.01.17.
+ *
+ * Only supports TaskEvent Traces for now.
  */
 public class ProcessGoogleClusterData extends ProcessData {
     private final Logger logger = LoggerFactory.getLogger(ProcessGoogleClusterData.class);

@@ -62,7 +62,7 @@ public abstract class ProcessData {
     protected abstract Map<String, List<Map<String, Event>>> esper(EPServiceProvider epService, DeploymentResult deploymentResult, File eventLog, long startingTime);
 
     // write the matches into files
-    public void write(Map<String, List<Map<String, Event>>> matches, File path) {
+    public void write(Map<String, List<Map<String, Event>>> matches, String path) {
         // for each pattern
         for (Map.Entry<String, List<Map<String, Event>>> matchedSequence : matches.entrySet()) {
             // get the name of the pattern

@@ -1,0 +1,59 @@
+module com.mitakas.esper.Dublin;
+
+// import the event type
+import com.mitakas.esper.event.BusEvent;
+
+// set the schema for the events
+create schema BusEvent as BusEvent;
+
+/* Pattern Dublin-p1
+    Pattern SEQ(Bus a, Bus b, Bus c)
+    Where a.lineID = b.lineID = c.lineID
+    And a.delay < b.delay < c.delay
+    And a.atStop = b.atStop = c.atStop = 1
+    Within 10 minutes
+ */
+@Name('dublin-p1')
+@Description('A sequence of three buses')
+select * from pattern [
+  every a=BusEvent(atStop = 1) -> (
+    b=BusEvent(lineID = a.lineID and delay > a.delay and atStop = a.atStop) ->
+    c=BusEvent(lineID = a.lineID and delay > b.delay and atStop = a.atStop)
+  )
+  where timer:within(10 minutes)
+];
+
+
+/* Pattern Dublin-p2
+    Pattern SEQ(Bus a, Bus b)
+    Where a.atStop = b.atStop = 0
+    And a.vehicleID = b.vehicleID
+    And a.delay > b.delay
+    Within 10 minutes
+ */
+@Name('dublin-p2')
+@Description('A sequence of two buses')
+select * from pattern [
+  every a=BusEvent(atStop = 0) -> (
+    b=BusEvent(atStop = a.atStop and vehicleID = a.vehicleID and delay < a.delay)
+  )
+  where timer:within(10 minutes)
+];
+
+
+/* Pattern Dublin-p3
+    Pattern SEQ(Bus a, Bus b, Bus c)
+    Where a.atStop = b.atStop = c.atStop = 1
+    And a.stopID = b.stopID = c.stopID
+    Within 1 minutes
+ */
+@Name('dublin-p3')
+@Description('A sequence of three buses')
+select * from pattern [
+  (every a=BusEvent(atStop = 1)) -> (
+    (every b=BusEvent(atStop = a.atStop and stopID = a.stopID)) -> (
+      every c=BusEvent(atStop = a.atStop and stopID = a.stopID)
+    )
+  )
+  where timer:within(1 minute)
+];

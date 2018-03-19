@@ -7,19 +7,28 @@ import de.huberlin.cs.pda.queryeval.comparators.LastEventComparator;
 import de.huberlin.cs.pda.queryeval.comparators.FullComparator;
 import de.huberlin.cs.pda.queryeval.esper.*;
 import de.huberlin.cs.pda.queryeval.esper.event.Event;
+import de.huberlin.cs.pda.queryeval.plotting.Plotter;
 import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import org.apache.commons.collections4.MapUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 
 public class Main {
-
+    private final static Logger logger = LoggerFactory.getLogger(Main.class);
 
     public static void main(String [] args) throws IOException, ParseException, DeploymentException, InterruptedException
     {
@@ -30,6 +39,12 @@ public class Main {
                 .withRequiredArg()
                 .required()
                 .ofType(String.class);
+
+        OptionSpec<File> datasetFileOption
+                = parser.accepts("dataset-file", "The path to the file of the dataset on which to evaluate the queries")
+                .withRequiredArg()
+                .required()
+                .ofType(File.class);
 
         OptionSpec<File> eplFileOption
                 = parser.accepts("epl-file", "The .epl File containing the queries.")
@@ -44,7 +59,7 @@ public class Main {
                 .ofType(String.class);
 
         OptionSpec<String> evaluatedQueryOption
-                = parser.accepts("evaluated-query", "The name of the query in the .epl File that is to be evaluated.")
+                = parser.accepts("evaluated-queries", "The comma-seperated names of the queries in the .epl File that are to be evaluated.")
                 .withRequiredArg()
                 .required()
                 .ofType(String.class);
@@ -57,6 +72,12 @@ public class Main {
 
         OptionSpec<File> saveDirOption
                 = parser.accepts("save-dir", "Folder to save the traces, plots etc.")
+                .withRequiredArg()
+                .required()
+                .ofType(File.class);
+
+        OptionSpec<File> plotDirOption
+                = parser.accepts("plot-dir", "Folder where gnuplot scripts lie etc.")
                 .withRequiredArg()
                 .required()
                 .ofType(File.class);
@@ -74,12 +95,49 @@ public class Main {
             }
 
             String dataset = datasetOption.value(options);
+            File datasetFile = datasetFileOption.value(options);
             File eplFile = eplFileOption.value(options);
             String baseQuery = baseQueryOption.value(options);
-            String evaluatedQuery = evaluatedQueryOption.value(options);
+            String evaluatedQueries = evaluatedQueryOption.value(options);
             String comparatorString = comparatorOption.value(options);
             File saveDir = saveDirOption.value(options);
+            File plotDir = plotDirOption.value(options);
 
+
+            /***********************************************************************************
+             *
+             * 1. General preparation
+             *
+             ***********************************************************************************/
+
+            /**
+             * Create required folders for this program execution
+             */
+            Date now = new Date();
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+            String time = dateFormat.format(now);
+            String basePath = saveDir.getAbsolutePath() + "/" + time;
+            boolean success = (new File(basePath + "/results/matches")).mkdirs();
+
+            if (!success) {
+                // Directory creation failed
+                logger.error("Could not create a result folder.");
+                return;
+            }
+            (new File(basePath + "/plots")).mkdirs();
+            (new File(basePath + "/results/false-positives")).mkdirs();
+            (new File(basePath + "/results/false-negatives")).mkdirs();
+
+            /**
+             * Create a file containing the config of this program exeuction
+             */
+            PrintStream configOut = new PrintStream(new File(basePath + "/config.dat"));
+            MapUtils.verbosePrint(configOut, "options", options.asMap());
+
+
+            /**
+             * Pick the comparator for the evaluation
+             */
             Comparator comparator;
             switch (comparatorString) {
                 case "full":
@@ -89,7 +147,7 @@ public class Main {
                     comparator = new LastEventComparator();
                     break;
                 default:
-                    System.out.println("Choose a dataset [full|last-event]");
+                    logger.error("Choose a dataset [full|last-event]");
                     return;
             }
 
@@ -100,58 +158,84 @@ public class Main {
              *
              ***********************************************************************************/
             ProcessData dataProcessing;
-            File datasetFile;
             switch (dataset) {
                 case "dublin":
                     dataProcessing = new ProcessDublinData();
-                    datasetFile = new File("");
                     break;
                 case "google-cluster":
                     dataProcessing = new ProcessGoogleClusterData();
-                    datasetFile = new File("/media/ntfs/0_Semesterarbeit/Datensaetze/google_cluster_data/task_events/part-00005-of-00500.csv.gz");
                     break;
                 case "debs2015":
                     dataProcessing = new ProcessDEBS2015Data();
-                    datasetFile = new File("");
                     break;
                 case "nasdaq":  // nasdaq
                     dataProcessing = new ProcessNasdaqData();
-                    datasetFile = new File("");
                     break;
                 default:
-                    System.out.println("Choose a dataset [dublin|google-cluster|debs2015|nasdaq]");
+                    logger.error("Choose a dataset [dublin|google-cluster|debs2015|nasdaq]");
                     return;
             }
             long startingTimeBase = 0L;
             Map<String, List<Map<String, Event>>> queryMatches = dataProcessing.run(datasetFile, eplFile, startingTimeBase);
-            dataProcessing.write(queryMatches, saveDir);
-            //System.out.println(queryMatches);
+            dataProcessing.write(queryMatches, basePath + "/results/matches/"); // write matches to file
+
 
             List<Map<String, Event>> baseQueryMatches = queryMatches.get(baseQuery);
-            List<Map<String, Event>> evaluatedQueryMatches = queryMatches.get(evaluatedQuery);
 
-            System.out.println(evaluatedQueryMatches);
+            String[] evalQueries = evaluatedQueries.split(",", 0);
+            Map<String, List<Map<String, Event>>> evalQueriesMatches = new HashMap<String, List<Map<String, Event>>>();
+            for(String evalQuery: evalQueries){
+                List<Map<String, Event>> evalQueryMatches = queryMatches.get(evalQuery);
+                if( evalQueryMatches == null ){
+                    logger.error("Error: Query '" + evalQuery + "' does not exist in your epl file.");
+                    return;
+                }
+                evalQueriesMatches.put(evalQuery, evalQueryMatches);
+
+            }
+
 
             /***********************************************************************************
              *
              * 2. Compare query results with a given comparator
              *
              ***********************************************************************************/
-            Evaluator eval = new Evaluator(baseQueryMatches, evaluatedQueryMatches, comparator);
-            EvalData results = eval.evaluate();
-
-            System.out.println(results.getResults());
+            Evaluator eval = new Evaluator(baseQueryMatches, evalQueriesMatches, comparator);
+            Map<String,EvalData> results = eval.evaluate();
 
             /***********************************************************************************
              *
-             * 3. Plot the results
+             * 3. Write results to file and plot them
              *
              ***********************************************************************************/
+            try {
+                Path path = Paths.get(basePath + "/results/results.dat");
+                String header = "Query\tTP\tFP\tFN\tPrecision\tRecall\tF1\n";
+                Files.write(path, header.getBytes());
 
+                for (Map.Entry<String, EvalData> queryEvaluation : results.entrySet()) {
+                    logger.info("----------  " + queryEvaluation.getKey() + "  ------------");
+                    logger.info(queryEvaluation.getValue().getResults());
+                    logger.info("\n");
+
+
+                    byte[] strToBytes = queryEvaluation.getValue().getResultsForFile().getBytes();
+                    Files.write(path, strToBytes, StandardOpenOption.APPEND);
+
+                    queryEvaluation.getValue().writeResultFiles(basePath + "/results/");
+                }
+            }catch(IOException e){
+                logger.error(e.getMessage());
+            }
+
+
+            Plotter resultPlotter = new Plotter(plotDir, basePath, evalQueries);
+            resultPlotter.plot();
 
         }
         catch(OptionException e){
             parser.printHelpOn(System.out);
+            logger.error(e.getMessage());
         }
 
 

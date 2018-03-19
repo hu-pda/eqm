@@ -1,0 +1,77 @@
+module de.huberlin.cs.pda.queryeval.esper.GoogleCluster;
+
+// import the event type
+import de.huberlin.cs.pda.queryeval.esper.event.ClusterTaskEvent;
+
+// set the schema for the events
+create schema ClusterTaskEvent as ClusterTaskEvent;
+
+/* Pattern Cluster-p1
+    Pattern SEQ(Task a, Task b, Task c)
+    Where a.status = c.status = 0 And b.status = 5
+    And a.job = b.job And a.job = c.job
+    And a.machine = b.machine And a.machine = c.machine
+    Within 60 minutes
+*/
+@Name('cluster-p1')
+@Description('A sequence of three tasks')
+select * from pattern [
+  every a=ClusterTaskEvent(eventType = '0') -> (
+    b=ClusterTaskEvent(eventType = '5' and jobID = a.jobID and machineID = a.machineID) ->
+    c=ClusterTaskEvent(eventType = '0' and jobID = a.jobID and machineID = a.machineID)
+  )
+  where timer:within(60 minutes)
+];
+
+@Name('cluster-p1-eval')
+select * from pattern [
+  every a=ClusterTaskEvent(eventType = '0') -> (
+    b=ClusterTaskEvent(eventType = '5' and jobID = a.jobID) ->
+    c=ClusterTaskEvent(eventType = '0' and jobID = a.jobID and machineID = a.machineID)
+  )
+  where timer:within(60 minutes)
+];
+
+@Name('cluster-p1-second-approach')
+select * from pattern [
+  every a=ClusterTaskEvent(eventType = '0') -> (
+    b=ClusterTaskEvent(eventType = '5' and jobID = a.jobID) ->
+    c=ClusterTaskEvent(eventType = '0' and machineID = a.machineID)
+  )
+  where timer:within(60 minutes)
+];
+
+
+/* Pattern Cluster-p2
+    Pattern SEQ(Task a, Task b, Task c, Task d)
+    Where a.machine = b.machine And a.machine = c.machine And a.machine = d.machine
+    And a.status = 4 And b.status = 4 And c.status = 4 And d.status = 4
+    Within 100 minutes
+ */
+@Name('cluster-p2')
+@Description('A sequence of four tasks')
+select * from pattern [
+  every a=ClusterTaskEvent(eventType = '4') -> (
+    b=ClusterTaskEvent(machineID = a.machineID and eventType = '4') ->
+    c=ClusterTaskEvent(machineID = a.machineID and eventType = '4') ->
+    d=ClusterTaskEvent(machineID = a.machineID and eventType = '4')
+  )
+  where timer:within(100 minutes)
+];
+
+
+/* Pattern Cluster-p3
+    Pattern SEQ(Task a, Task b, Task c)
+    Where a.machine = b.machine And a.job = c.job
+    And a.status = 1 And b.status = 1 And c.status = 2
+    Within 100 seconds
+ */
+@Name('cluster-p3')
+@Description('A sequence of three tasks')
+select * from pattern [
+  every a=ClusterTaskEvent(eventType = '1') -> (
+    b=ClusterTaskEvent(machineID = a.machineID and eventType = '1') ->
+    c=ClusterTaskEvent(jobID = a.jobID and eventType = '2')
+  )
+  where timer:within(100 seconds)
+];
