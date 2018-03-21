@@ -1,3 +1,5 @@
+resultfile = sprintf("%s%s", basepath, "/results/results.dat")
+outputfile = sprintf("%s%s", basepath, "/plots/fmeasure.eps")
 set title "F-measure curve" # chart title
 set xlabel "Threshold" # x-axis label
 set ylabel "F-measure" # y-axis label

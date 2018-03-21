@@ -5,7 +5,6 @@ import com.espertech.esper.client.EPServiceProvider;
 import com.espertech.esper.client.EPStatement;
 import com.espertech.esper.client.deploy.DeploymentResult;
 import com.espertech.esper.client.time.CurrentTimeEvent;
-import com.espertech.esper.core.service.EPStatementImpl;
 import de.huberlin.cs.pda.queryeval.esper.event.ClusterTaskEvent;
 import de.huberlin.cs.pda.queryeval.esper.event.Event;
 import de.huberlin.cs.pda.queryeval.esper.listener.ClusterTaskEventListener;
@@ -61,22 +60,20 @@ public class ProcessGoogleClusterData extends ProcessData {
                 differentMachinesRestriction);
     }
 
-    protected Map<String, List<Map<String, Event>>> esper(EPServiceProvider epService, DeploymentResult deploymentResult, File eventLog, long startingTime) {
+    protected Map<String, List<Map<String, Event>>> esper(EPServiceProvider epService, DeploymentResult deploymentResult, File eventLog, long startingTime, String baseQuery, String[] evaluatedQueries, String[] evaluatedGroups) {
         EPRuntime runtime = epService.getEPRuntime();
 
         // send a starting CurrentTimeEvent, time starts at 19:00 of May 1, 2011
         //startingTime = LocalDateTime.parse("2011-05-01T19:00:00").atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
         runtime.sendEvent(new CurrentTimeEvent(startingTime));
 
-        Map<EPStatement, EventListener> listeners = new HashMap<>();
+        Map<EPStatement,String> filteredStatements = filterStatements(deploymentResult, baseQuery, evaluatedQueries, evaluatedGroups);
 
-        // add the corresponding listener to each statement
-        for (EPStatement statement: deploymentResult.getStatements()) {
-            if (((EPStatementImpl) statement).isNameProvided()) {
-                EventListener listener = new ClusterTaskEventListener();
-                statement.addListener(listener);
-                listeners.put(statement, listener);
-            }
+        Map<String, EventListener> listeners = new HashMap<>();
+        for(Map.Entry<EPStatement,String> entry : filteredStatements.entrySet()){
+            EventListener listener = new ClusterTaskEventListener();
+            entry.getKey().addListener(listener);
+            listeners.put(entry.getValue(), listener);
         }
 
         logger.info("Parsing events from file: {}", eventLog.getPath());
@@ -123,8 +120,8 @@ public class ProcessGoogleClusterData extends ProcessData {
 
         // return the found matches {<statement-id>: [{<variable-in-pattern>, <event>},]
         Map<String, List<Map<String, Event>>> matches = new HashMap<>();
-        for (Map.Entry<EPStatement, EventListener> listener : listeners.entrySet()) {
-            matches.put(listener.getKey().getName(), listener.getValue().getMatchedSequences());
+        for (Map.Entry<String, EventListener> listener : listeners.entrySet()) {
+            matches.put(listener.getKey(), listener.getValue().getMatchedSequences());
         }
 
         return matches;

@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -136,16 +137,34 @@ public class EvalData {
     }
 
     public void writeResultFiles(String directory) throws IOException{
-        Path path = Paths.get(directory + "/results-" + queryName + ".dat");
+        // Write Query Output
+        Path path = Paths.get(directory + "/perQuery/results-" + queryName + ".dat");
         byte[] strToBytes = getResults().getBytes();
         Files.write(path, strToBytes);
 
+
+        // Write Group Output
+        if(queryName.contains(".")){
+            String[] queryGroupName = queryName.split("\\.");
+            Path groupPath = Paths.get(directory + "/perGroup/results-" + queryGroupName[0] + ".dat");
+            if(Files.notExists(groupPath)){
+                Files.createFile(groupPath);
+                String header = "Query\tTP\tFP\tFN\tPrecision\tRecall\tF1\n";
+                Files.write(groupPath, header.getBytes());
+            }
+            byte[] groupStrToBytes = getResultsForFile().getBytes();
+            Files.write(groupPath, groupStrToBytes, StandardOpenOption.APPEND);
+        }
+
+        // Write False Positive File
         FileWriter fpWriter = new FileWriter(directory + "/false-positives/fp-" + queryName + ".dat");
         for(String str: falsePositivesList) {
             fpWriter.write(str + "\n\n");
         }
         fpWriter.close();
 
+
+        // Write False Negative File
         FileWriter fnWriter = new FileWriter(directory + "/false-negatives/fn-" + queryName + ".dat");
         for(String str: falseNegativesList) {
             fnWriter.write(str + "\n\n");

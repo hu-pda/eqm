@@ -1,3 +1,5 @@
+resultfile = sprintf("%s%s", basepath, "/results/results.dat")
+outputfile = sprintf("%s%s", basepath, "/plots/roc.eps")
 set title "ROC curve" # chart title
 set xlabel "False positive rate" # x-axis label
 set ylabel "True positive rate" # y-axis label

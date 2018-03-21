@@ -58,10 +58,15 @@ public class Main {
                 .required()
                 .ofType(String.class);
 
+        OptionSpec<String> evaluatedGroupsOption
+                = parser.accepts("evaluated-groups", "The comma-seperated names of the groups of queries in the .epl File that are to be evaluated.")
+                .withOptionalArg()
+                .ofType(String.class);
+
         OptionSpec<String> evaluatedQueryOption
                 = parser.accepts("evaluated-queries", "The comma-seperated names of the queries in the .epl File that are to be evaluated.")
+                .requiredUnless("evaluated-groups")
                 .withRequiredArg()
-                .required()
                 .ofType(String.class);
 
         OptionSpec<String> comparatorOption
@@ -98,7 +103,17 @@ public class Main {
             File datasetFile = datasetFileOption.value(options);
             File eplFile = eplFileOption.value(options);
             String baseQuery = baseQueryOption.value(options);
-            String evaluatedQueries = evaluatedQueryOption.value(options);
+
+            String[] evaluatedQueries = {};
+            if(options.has("evaluated-queries")){
+                evaluatedQueries = evaluatedQueryOption.value(options).split(",", 0);
+            }
+
+            String[] evaluatedGroups = {};
+            if(options.has("evaluated-groups")){
+                evaluatedGroups = evaluatedGroupsOption.value(options).split(",", 0);
+            }
+
             String comparatorString = comparatorOption.value(options);
             File saveDir = saveDirOption.value(options);
             File plotDir = plotDirOption.value(options);
@@ -114,7 +129,7 @@ public class Main {
              * Create required folders for this program execution
              */
             Date now = new Date();
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd_hh:mm:ss");
             String time = dateFormat.format(now);
             String basePath = saveDir.getAbsolutePath() + "/" + time;
             boolean success = (new File(basePath + "/results/matches")).mkdirs();
@@ -127,6 +142,8 @@ public class Main {
             (new File(basePath + "/plots")).mkdirs();
             (new File(basePath + "/results/false-positives")).mkdirs();
             (new File(basePath + "/results/false-negatives")).mkdirs();
+            (new File(basePath + "/results/perQuery")).mkdirs();
+            (new File(basePath + "/results/perGroup")).mkdirs();
 
             /**
              * Create a file containing the config of this program exeuction
@@ -176,23 +193,12 @@ public class Main {
                     return;
             }
             long startingTimeBase = 0L;
-            Map<String, List<Map<String, Event>>> queryMatches = dataProcessing.run(datasetFile, eplFile, startingTimeBase);
+            Map<String, List<Map<String, Event>>> queryMatches = dataProcessing.run(datasetFile, eplFile, startingTimeBase, baseQuery, evaluatedQueries, evaluatedGroups);
             dataProcessing.write(queryMatches, basePath + "/results/matches/"); // write matches to file
 
 
             List<Map<String, Event>> baseQueryMatches = queryMatches.get(baseQuery);
-
-            String[] evalQueries = evaluatedQueries.split(",", 0);
-            Map<String, List<Map<String, Event>>> evalQueriesMatches = new HashMap<String, List<Map<String, Event>>>();
-            for(String evalQuery: evalQueries){
-                List<Map<String, Event>> evalQueryMatches = queryMatches.get(evalQuery);
-                if( evalQueryMatches == null ){
-                    logger.error("Error: Query '" + evalQuery + "' does not exist in your epl file.");
-                    return;
-                }
-                evalQueriesMatches.put(evalQuery, evalQueryMatches);
-
-            }
+            queryMatches.remove(baseQuery);
 
 
             /***********************************************************************************
@@ -200,7 +206,7 @@ public class Main {
              * 2. Compare query results with a given comparator
              *
              ***********************************************************************************/
-            Evaluator eval = new Evaluator(baseQueryMatches, evalQueriesMatches, comparator);
+            Evaluator eval = new Evaluator(baseQueryMatches, queryMatches, comparator);
             Map<String,EvalData> results = eval.evaluate();
 
             /***********************************************************************************
@@ -229,7 +235,7 @@ public class Main {
             }
 
 
-            Plotter resultPlotter = new Plotter(plotDir, basePath, evalQueries);
+            Plotter resultPlotter = new Plotter(plotDir, basePath, evaluatedQueries);
             resultPlotter.plot();
 
         }

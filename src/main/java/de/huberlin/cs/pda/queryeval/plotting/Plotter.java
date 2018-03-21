@@ -27,8 +27,7 @@ public class Plotter {
                 logger.info(script.getAbsolutePath());
                 String[] command = {"gnuplot",
                         "-e",
-                        "resultfile='" + targetDir + "/results/results.dat" +   "'; " +
-                                "outputfile='" + targetDir + "/plots/" + script.getName().replace(".gp", "") + ".eps';" +
+                        "basepath='" + targetDir + "'; " +
                                 "queries=" + queryNames.length + "; querynames='" + String.join(" ", queryNames) + "';",
                         script.getName()};
                 logger.info(Arrays.toString(command));

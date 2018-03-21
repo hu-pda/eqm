@@ -48,22 +48,20 @@ public class ProcessNasdaqData extends ProcessData {
     }
 
     @Override
-    protected Map<String, List<Map<String, Event>>> esper(EPServiceProvider epService, DeploymentResult deploymentResult, File eventLog, long startingTime) {
+    protected Map<String, List<Map<String, Event>>> esper(EPServiceProvider epService, DeploymentResult deploymentResult, File eventLog, long startingTime, String baseQuery, String[] evaluatedQueries, String[] evaluatedGroups) {
         EPRuntime runtime = epService.getEPRuntime();
 
         // send a starting CurrentTimeEvent
         //startingTime = LocalDateTime.parse("2010-11-01T00:00:00").atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
         runtime.sendEvent(new CurrentTimeEvent(startingTime));
 
-        Map<EPStatement, EventListener> listeners = new HashMap<>();
+        Map<EPStatement,String> filteredStatements = filterStatements(deploymentResult, baseQuery, evaluatedQueries, evaluatedGroups);
 
-        // add the corresponding listener to each statement
-        for (EPStatement statement: deploymentResult.getStatements()) {
-            if (((EPStatementImpl) statement).isNameProvided()) {
-                EventListener listener = new StockEventListener();
-                statement.addListener(listener);
-                listeners.put(statement, listener);
-            }
+        Map<String, EventListener> listeners = new HashMap<>();
+        for(Map.Entry<EPStatement,String> entry : filteredStatements.entrySet()){
+            EventListener listener = new StockEventListener();
+            entry.getKey().addListener(listener);
+            listeners.put(entry.getValue(), listener);
         }
 
         logger.info("Parsing events from file: {}", eventLog.getPath());
@@ -97,9 +95,9 @@ public class ProcessNasdaqData extends ProcessData {
 
         // return the found matches {<statement-id>: [{<variable-in-pattern>, <event>},]
         Map<String, List<Map<String, Event>>> matches = new HashMap<>();
-        for (Map.Entry<EPStatement, EventListener> listener : listeners.entrySet()) {
+        for (Map.Entry<String, EventListener> listener : listeners.entrySet()) {
             // defined in superclass
-            matches.put(listener.getKey().getName(), listener.getValue().getMatchedSequences());
+            matches.put(listener.getKey(), listener.getValue().getMatchedSequences());
         }
 
         return matches;
