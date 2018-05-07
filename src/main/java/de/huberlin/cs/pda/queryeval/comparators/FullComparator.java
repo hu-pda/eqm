@@ -9,11 +9,6 @@ public class FullComparator implements Comparator {
 
     @Override
     public int find(Map<String, Event> match, List<Map<String, Event>>listOfMatches) {
-        for(int i=0; i < listOfMatches.size(); i++){
-            if(listOfMatches.get(i).equals(match)){
-                return i;
-            }
-        }
-        return -1;
+        return listOfMatches.indexOf(match);
     }
 }

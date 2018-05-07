@@ -28,7 +28,7 @@ public class ProcessGoogleClusterData extends ProcessData {
     private final Logger logger = LoggerFactory.getLogger(ProcessGoogleClusterData.class);
 
     @NotNull
-    private static ClusterTaskEvent convertLineToEvent(String line) {
+    public static ClusterTaskEvent convertLineToEvent(String line) {
         String[] fields = line.split(",", 13);
 
         long time = Long.parseLong(fields[0]);
@@ -83,39 +83,43 @@ public class ProcessGoogleClusterData extends ProcessData {
         // send the event
         long processedEvents = 0L;
         long lastTimestamp = 0L;
-        try (BufferedReader fileReader = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(eventLog), 2_097_152), "US-ASCII"))) {
-            String line;
-            while ((line = fileReader.readLine()) != null) {
-                ClusterTaskEvent clusterTaskEvent = convertLineToEvent(line);
+        File[] files = eventLog.listFiles();
+        for(File file : files){
+            try (BufferedReader fileReader = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(file), 2_097_152), "US-ASCII"))) {
+                String line;
+                while ((line = fileReader.readLine()) != null) {
+                    ClusterTaskEvent clusterTaskEvent = convertLineToEvent(line);
 
-                // the event time is given as microseconds after the start of the trace window
-                long eventTime = clusterTaskEvent.getTime();
+                    // the event time is given as microseconds after the start of the trace window
+                    long eventTime = clusterTaskEvent.getTime();
 
-                // time of 0 means that the event has been scheduled before the trace window
-                if (eventTime == 0) {
-                    continue;
+                    // time of 0 means that the event has been scheduled before the trace window
+                    if (eventTime == 0) {
+                        continue;
+                    }
+
+                    // convert the event time from microseconds to milliseconds
+                    eventTime = eventTime / 1_000;
+
+                    // calculate the actual starting time of the event
+                    eventTime = startingTime + eventTime;
+                    if (eventTime > lastTimestamp) {
+                        runtime.sendEvent(new CurrentTimeEvent(eventTime));
+                        lastTimestamp = eventTime;
+                    }
+                    runtime.sendEvent(clusterTaskEvent);
+
+                    if (processedEvents % 100_000 == 0) {
+                        logger.info("{} events processed.", processedEvents);
+                    }
+                    processedEvents++;
                 }
 
-                // convert the event time from microseconds to milliseconds
-                eventTime = eventTime / 1_000;
-
-                // calculate the actual starting time of the event
-                eventTime = startingTime + eventTime;
-                if (eventTime > lastTimestamp) {
-                    runtime.sendEvent(new CurrentTimeEvent(eventTime));
-                    lastTimestamp = eventTime;
-                }
-                runtime.sendEvent(clusterTaskEvent);
-
-                if (processedEvents % 100_000 == 0) {
-                    logger.info("{} events processed.", processedEvents);
-                }
-                processedEvents++;
+            } catch (IOException ioe) {
+                ioe.printStackTrace();
             }
-
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
         }
+
         logger.info("Parsing events from file: {} done.", eventLog.getPath());
 
         // return the found matches {<statement-id>: [{<variable-in-pattern>, <event>},]

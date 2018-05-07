@@ -33,7 +33,7 @@ public class Evaluator {
             logger.info("Now evaluating query '" + queryName + "'");
 
             EvalData queryData = new EvalData(queryName);
-            List<Map<String, Event>> baseMatchesCopy = new ArrayList<Map<String, Event>>(baseMatches);
+            List<Map<String, Event>> baseMatchesCopy = new ArrayList<>(baseMatches);
 
             for(Map<String, Event> match: evalQueryMatches.getValue()){
 
