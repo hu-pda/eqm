@@ -8,6 +8,7 @@ It uses the Esper EQM engine (see http://www.espertech.com/esper/) for query exe
 The proposed workflow for the usage of this tool is as follows:
 
 1 Choose a supported data set or implement support for a new data set and create a Esper epl module containing a base query. 
+
 2 Create historic traces from the data set by using the partitioning mode of this tool like this:
 
 ```
@@ -16,6 +17,7 @@ The proposed workflow for the usage of this tool is as follows:
 ```
 
 3 Use your EQM implementation to create one or more esper queries you want to evaluate.
+
 4 Use this tool for evaluation like this:
 
 ```
